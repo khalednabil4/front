@@ -81,4 +81,26 @@ export interface DynamicSchema {
   fields: DynamicField[];
 }
 
-export type View = 'dashboard' | 'areas' | 'stations' | 'reports' | 'profile' | 'dynamic-table' | 'dynamic-create';
+export type View =
+  | 'dashboard'
+  | 'areas'
+  | 'stations'
+  | 'reports'
+  | 'profile'
+  | 'dynamic-table'
+  | 'dynamic-create'
+  | 'newpage'
+  | 'companies'
+  | 'dm'
+  | 'provinces'
+  | 'centers'
+  | 'villages'
+  | 'device-types'
+  | 'measure-types'
+  | 'measure-devices'
+  | 'points'
+  | 'readings'
+  | 'dma-field-surveys'
+  | 'dmz-network-data'
+  | 'units'
+  | 'connection-types';

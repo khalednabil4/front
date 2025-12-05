@@ -1,0 +1,166 @@
+/* Global overrides to preserve brand/accent colors in dark mode */
+
+/* Ensure elements using water color classes keep the CSS variable value in dark mode */
+.dark [class*="bg-water"] {
+    background-color: var(--color-primary-500) !important;
+}
+
+.dark [class*="text-water"] {
+    color: var(--color-primary-500) !important;
+}
+
+.dark [class*="border-water"] {
+    border-color: var(--color-primary-500) !important;
+}
+
+/* Keep water-filled buttons' text readable */
+.dark [class*="bg-water"] {
+    color: white !important;
+}
+
+/* If an element specifically uses "bg-white" in dark mode, keep it readable by adding subtle border */
+.dark .bg-white {
+    background-color: #0f172a !important;
+    /* darken slightly to avoid pure white blocks */
+    color: white !important;
+    border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+/* Preserve selection appearance */
+::selection {
+    background: var(--color-primary-500);
+    color: white;
+}
+
+/* Optional: preserve accent when using inline svgs with fill-current */
+.dark .fill-current {
+    fill: var(--color-primary-500) !important;
+}
+
+/* Water station animation styles */
+@keyframes wave-move {
+    from {
+        transform: translateX(0%);
+    }
+
+    to {
+        transform: translateX(-50%);
+    }
+}
+
+@keyframes droplet-bob {
+    0% {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+    }
+
+    50% {
+        transform: translateY(6px) scale(0.98);
+        opacity: 0.9;
+    }
+
+    100% {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes pump-rotate {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.water-animation {
+    width: 160px;
+    height: 120px;
+}
+
+.water-animation .waves {
+    overflow: hidden;
+}
+
+.water-animation .wave-track {
+    display: flex;
+    width: 200%;
+}
+
+.water-animation .wave {
+    width: 50%;
+    opacity: 0.85;
+}
+
+.water-animation .wave-track {
+    animation: wave-move 0.7s linear infinite;
+}
+
+.water-animation .pump {
+    animation: pump-rotate 0.5s linear infinite;
+}
+
+.water-animation .droplet {
+    animation: droplet-bob 0.4s ease-in-out infinite;
+}
+
+.water-animation .droplet {
+    animation: droplet-bob 1.2s ease-in-out infinite;
+    transform-origin: center;
+}
+
+.water-animation .pump {
+    animation: pump-rotate 2s linear infinite;
+    transform-origin: center;
+}
+
+/* Scroll-to-top button animations */
+@keyframes upscroll-bob {
+    0% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-6px);
+    }
+
+    100% {
+        transform: translateY(0);
+    }
+}
+
+@keyframes pulse-ring {
+    0% {
+        box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.36);
+    }
+
+    70% {
+        box-shadow: 0 0 0 12px rgba(14, 165, 233, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(14, 165, 233, 0);
+    }
+}
+
+.upscroll-bob {
+    animation: upscroll-bob 900ms ease-in-out infinite;
+}
+
+.pulse-ring {
+    position: absolute;
+    width: 48px;
+    height: 48px;
+    border-radius: 9999px;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    animation: pulse-ring 1600ms ease-out infinite;
+}
+
+.scroll-top-wrapper {
+    position: relative;
+}

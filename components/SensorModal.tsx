@@ -1,6 +1,5 @@
-
-import React, { useEffect, useState } from 'react';
-import { X, Activity, Clock, Droplets, AlertTriangle } from 'lucide-react';
+import React, { useEffect, useState, useMemo } from 'react';
+import { X, Activity, Clock, Droplets, AlertTriangle, TrendingUp } from 'lucide-react';
 import { Sensor, Language } from '../types';
 import { DICTIONARY } from '../constants';
 import { Area, Line, ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -9,16 +8,51 @@ interface SensorModalProps {
   sensor: Sensor | null;
   onClose: () => void;
   lang: Language;
+  summary?: any | null;
 }
 
-export const SensorModal: React.FC<SensorModalProps> = ({ sensor, onClose, lang }) => {
+type SensorModalInnerProps = Omit<SensorModalProps, 'sensor'> & { sensor: Sensor };
+
+const numberOrNull = (v: any): number | null => {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
+
+const padDomain = (values: number[]) => {
+  if (!values.length) return [0, 1];
+  let min = Math.min(...values);
+  let max = Math.max(...values);
+  if (min === max) {
+    min -= 1;
+    max += 1;
+  } else {
+    const pad = (max - min) * 0.1;
+    min -= pad;
+    max += pad;
+  }
+  return [min, max];
+};
+
+const safeTimeString = (value: any) => {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleTimeString();
+};
+
+const safeDateString = (value: any) => {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString();
+};
+
+const SensorModalInner: React.FC<SensorModalInnerProps> = ({ sensor, onClose, lang, summary }) => {
   const [isDark, setIsDark] = useState(false);
-  
+
   useEffect(() => {
-    // Check initial theme
     setIsDark(document.documentElement.classList.contains('dark'));
-    
-    // Observer for class changes on html element to update tooltip theme dynamically
     const observer = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
         if (mutation.attributeName === 'class') {
@@ -30,12 +64,89 @@ export const SensorModal: React.FC<SensorModalProps> = ({ sensor, onClose, lang 
     return () => observer.disconnect();
   }, []);
 
-  if (!sensor) return null;
-  
   const t = DICTIONARY[lang];
   const isRTL = lang === 'ar';
 
-  // Tooltip Styles based on Theme
+  const pointTypesRaw = Array.isArray(summary?.point?.point_type) ? summary.point.point_type : [];
+  const pointTypes = pointTypesRaw.map((pt: any) =>
+    typeof pt === 'string' ? pt.toLowerCase() : String(pt || '').toLowerCase()
+  );
+  const supportsFlow = pointTypes.length === 0 || pointTypes.includes('flow');
+  const supportsPressure = pointTypes.length === 0 || pointTypes.includes('pressure');
+
+  const summaryReading = summary?.last_reading || {};
+  const summaryChart = Array.isArray(summary?.chart_24h) ? summary.chart_24h : [];
+  const pointUnit =
+    summary?.point?.unit ||
+    summary?.point?.unit_flow_total ||
+    summary?.point?.unit_pressure ||
+    summary?.point?.unit_flow;
+
+  const pressureValue = supportsPressure ? numberOrNull(summaryReading.pressure ?? sensor.pressure) : null;
+  const flowValue = supportsFlow ? numberOrNull(summaryReading.flow) : null;
+  const consumptionValue = numberOrNull(summary?.consumption_24h ?? sensor.dailyConsumption ?? 0) ?? 0;
+
+  const pressureUnit = summaryReading.unit_pressure || summary?.point?.unit_pressure || pointUnit || t.bar;
+  const flowUnit = summaryReading.unit_flow || summary?.point?.unit_flow || summary?.point?.unit_flow_total || pointUnit || 'm³';
+  const consumptionUnit = flowUnit || 'm³';
+
+  const lastReadingDate = (() => {
+    const src = summaryReading.datetime ?? sensor.lastReadingCurrent ?? new Date();
+    const time = safeTimeString(src) || safeTimeString(new Date());
+    const date = safeDateString(src) || safeDateString(new Date());
+    return { time, date };
+  })();
+
+  const chartData = useMemo(() => {
+    try {
+      let data: any[] = [];
+      if (summaryChart.length) {
+        data = summaryChart.map((r: any) => ({
+          time: safeTimeString(r?.datetime),
+          flow: supportsFlow ? numberOrNull(r?.flow) : null,
+          pressure: supportsPressure ? numberOrNull(r?.pressure) : null,
+        }));
+      } else if (Array.isArray(sensor.history)) {
+        data = sensor.history.map((h: any) => ({
+          time: h.time,
+          flow: supportsFlow ? numberOrNull(h.value) : null,
+          pressure: supportsPressure ? numberOrNull(h.value) : null,
+        }));
+      }
+      // Append last reading so it shows even if chart_24h is empty
+      if ((supportsFlow && flowValue !== null) || (supportsPressure && pressureValue !== null)) {
+        data.push({
+          time: lastReadingDate.time,
+          flow: supportsFlow ? flowValue : null,
+          pressure: supportsPressure ? pressureValue : null,
+        });
+      }
+      return data;
+    } catch (e) {
+      console.error('Chart data parse error', e);
+      return [];
+    }
+  }, [summaryChart, sensor.history, flowValue, pressureValue, lastReadingDate.time, supportsFlow, supportsPressure]);
+
+  const hasFlowData = supportsFlow && chartData.some(d => numberOrNull(d.flow) !== null);
+  const hasPressureData = supportsPressure && chartData.some(d => numberOrNull(d.pressure) !== null);
+
+  const yValues = chartData
+    .map(d => [numberOrNull(d.flow), numberOrNull(d.pressure)])
+    .flat()
+    .filter((v): v is number => v !== null);
+  const [yMin, yMax] = padDomain(yValues);
+
+  const summaryConsumption = consumptionValue;
+
+  const showFlowCard = supportsFlow;
+  const showPressureCard = supportsPressure;
+
+  const gridCols = 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-4';
+  const flowLabel = t.flowRate || t.consumption24h || 'Flow';
+  const pressureLabel = t.pressure || 'Pressure';
+  const noReadingText = lang === 'ar' ? 'لا يوجد قراءة' : 'No reading';
+
   const tooltipStyle = {
     backgroundColor: isDark ? '#1e293b' : '#ffffff',
     border: isDark ? '1px solid #334155' : '1px solid #e2e8f0',
@@ -68,73 +179,154 @@ export const SensorModal: React.FC<SensorModalProps> = ({ sensor, onClose, lang 
         <div className="p-6 overflow-y-auto">
           
           {/* Key Metrics Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-             <div className="bg-gradient-to-br from-water-500 to-water-600 text-white p-5 rounded-xl shadow-lg shadow-water-500/20 relative overflow-hidden">
+          <div className={`grid ${gridCols} gap-4 mb-8`}>
+            {/* Last Reading */}
+            <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-5 rounded-xl shadow-sm flex flex-col justify-center">
+              <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 mb-2">
+                <Clock size={16} />
+                <span className="text-sm font-medium">{t.lastReading}</span>
+              </div>
+              <div className="text-lg font-semibold text-slate-800 dark:text-slate-200" dir="ltr">
+                {lastReadingDate.time}
+              </div>
+              <div className="text-xs text-slate-400 mt-1">
+                {lastReadingDate.date}
+              </div>
+              <div className="text-xs text-slate-500 dark:text-slate-400 mt-3 space-y-1">
+                {showPressureCard && (
+                  <div>
+                    {pressureLabel}: {pressureValue === null ? noReadingText : `${pressureValue} ${pressureUnit}`}
+                  </div>
+                )}
+                {showFlowCard && (
+                  <div>
+                    {flowLabel}: {flowValue === null ? noReadingText : `${flowValue} ${flowUnit}`}
+                  </div>
+                )}
+                <div>{t.consumption24h}: {summaryConsumption} {consumptionUnit}</div>
+              </div>
+            </div>
+
+            {/* Pressure Card */}
+            {showPressureCard && (
+              <div className="bg-gradient-to-br from-water-500 to-water-600 text-white p-5 rounded-xl shadow-lg shadow-water-500/20 relative overflow-hidden">
                 <div className="absolute -right-4 -bottom-4 text-white/10">
                   <Activity size={80} />
                 </div>
-                <p className="text-water-100 text-sm font-medium mb-1">{t.pressure}</p>
+                <p className="text-water-100 text-sm font-medium mb-1">{pressureLabel}</p>
                 <div className="text-3xl font-bold flex items-end gap-1">
-                   {sensor.pressure} <span className="text-base font-normal opacity-80">{t.bar}</span>
+                  {pressureValue === null ? (
+                    <span className="text-base font-semibold">{noReadingText}</span>
+                  ) : (
+                    <>
+                      {pressureValue} <span className="text-base font-normal opacity-80">{pressureUnit}</span>
+                    </>
+                  )}
                 </div>
-             </div>
+                <div className="text-xs text-white/70 mt-2 flex items-center gap-1">
+                  <TrendingUp size={14} /> {lastReadingDate.time}
+                </div>
+              </div>
+            )}
 
-             <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-5 rounded-xl shadow-sm flex flex-col justify-center">
-                <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 mb-2">
-                   <Clock size={16} />
-                   <span className="text-sm font-medium">{t.lastReading}</span>
+            {/* Flow Card */}
+            {showFlowCard && (
+              <div className="bg-gradient-to-br from-sky-500 to-sky-600 text-white p-5 rounded-xl shadow-lg shadow-sky-500/20 relative overflow-hidden">
+                <div className="absolute -right-4 -bottom-4 text-white/10">
+                  <Droplets size={80} />
                 </div>
-                <div className="text-lg font-semibold text-slate-800 dark:text-slate-200" dir="ltr">
-                   {sensor.lastReadingCurrent.split(',')[1]}
+                <p className="text-sky-100 text-sm font-medium mb-1">{flowLabel}</p>
+                <div className="text-3xl font-bold flex items-end gap-1">
+                  {flowValue === null ? (
+                    <span className="text-base font-semibold">{noReadingText}</span>
+                  ) : (
+                    <>
+                      {flowValue} <span className="text-base font-normal opacity-80">{flowUnit}</span>
+                    </>
+                  )}
                 </div>
-                <div className="text-xs text-slate-400 mt-1">
-                   {sensor.lastReadingCurrent.split(',')[0]}
+                <div className="text-xs text-white/70 mt-2 flex items-center gap-1">
+                  <TrendingUp size={14} /> {t.lastReading}: {lastReadingDate.time}
                 </div>
-             </div>
+              </div>
+            )}
 
-             <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-5 rounded-xl shadow-sm flex flex-col justify-center">
-                <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 mb-2">
-                   <Droplets size={16} />
-                   <span className="text-sm font-medium">{t.consumption24h}</span>
-                </div>
-                <div className="text-xl font-bold text-slate-800 dark:text-slate-200">
-                   {sensor.dailyConsumption} m³
-                </div>
-             </div>
+            {/* Consumption Card */}
+            <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-5 rounded-xl shadow-sm flex flex-col justify-center">
+              <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 mb-2">
+                <Droplets size={16} />
+                <span className="text-sm font-medium">{t.consumption24h}</span>
+              </div>
+              <div className="text-3xl font-bold text-slate-800 dark:text-slate-200">
+                {summaryConsumption} <span className="text-base font-normal opacity-80">{consumptionUnit}</span>
+              </div>
+              <div className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                {lastReadingDate.date} | {lastReadingDate.time}
+              </div>
+            </div>
           </div>
 
           {/* Chart Section */}
-          <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl p-4 shadow-sm mb-6">
-            <div className="flex items-center justify-between mb-4">
-              <h4 className="font-bold text-slate-700 dark:text-slate-200">{t.historyGraph}</h4>
-              <div className="flex items-center gap-2 text-xs">
-                <span className="flex items-center gap-1 text-slate-500 dark:text-slate-400"><span className="w-2 h-2 rounded-full bg-water-500"></span> {t.normal}</span>
-                <span className="flex items-center gap-1 text-slate-500 dark:text-slate-400"><span className="w-2 h-2 rounded-full bg-red-500"></span> {t.alertHigh}</span>
+            <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl p-4 shadow-sm mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="font-bold text-slate-700 dark:text-slate-200">{t.historyGraph}</h4>
+                <div className="flex items-center gap-3 text-xs">
+                  {hasPressureData && (
+                    <span className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
+                      <span className="w-2 h-2 rounded-full bg-water-500"></span> {pressureLabel}
+                    </span>
+                  )}
+                  {hasFlowData && (
+                    <span className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
+                      <span className="w-2 h-2 rounded-full bg-sky-500"></span> {flowLabel}
+                    </span>
+                  )}
+                </div>
               </div>
+              
+              {chartData.length === 0 ? (
+                <div className="h-64 flex items-center justify-center text-slate-500 dark:text-slate-400 text-sm">
+                  {t.noRows || 'No data'}
+                </div>
+              ) : (
+                <div className="h-64 w-full">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={200}>
+                    <ComposedChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 20 }}>
+                      <defs>
+                        <linearGradient id="colorPressure" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="var(--color-primary-500)" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="var(--color-primary-500)" stopOpacity={0}/>
+                        </linearGradient>
+                        <linearGradient id="colorFlow" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.2}/>
+                          <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" vertical={false} opacity={0.2} />
+                      <XAxis dataKey="time" fontSize={12} tickMargin={10} stroke="#94a3b8" />
+                      <YAxis domain={[yMin, yMax]} fontSize={12} stroke="#94a3b8" orientation={isRTL ? "right" : "left"} />
+                      <Tooltip 
+                        contentStyle={tooltipStyle}
+                        cursor={{ stroke: '#94a3b8', strokeWidth: 1, strokeDasharray: '5 5' }}
+                        formatter={(val, key) => [val, key === 'pressure' ? `${pressureLabel} (${pressureUnit})` : `${flowLabel} (${flowUnit})`]}
+                      />
+                      {hasPressureData && (
+                        <>
+                          <Area type="monotone" dataKey="pressure" stroke="var(--color-primary-500)" fillOpacity={1} fill="url(#colorPressure)" connectNulls />
+                          <Line type="monotone" dataKey="pressure" stroke="var(--color-primary-500)" strokeWidth={2} dot={{ r: 3, fill: "var(--color-primary-500)" }} connectNulls />
+                        </>
+                      )}
+                      {hasFlowData && (
+                        <>
+                          <Area type="monotone" dataKey="flow" stroke="#0ea5e9" fillOpacity={0.15} fill="url(#colorFlow)" connectNulls />
+                          <Line type="monotone" dataKey="flow" stroke="#0ea5e9" strokeWidth={2} dot={{ r: 3, fill: "#0ea5e9" }} connectNulls />
+                        </>
+                      )}
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
             </div>
-            
-            <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={sensor.history}>
-                  <defs>
-                    <linearGradient id="colorPressure" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="var(--color-primary-500)" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="var(--color-primary-500)" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" vertical={false} opacity={0.2} />
-                  <XAxis dataKey="time" fontSize={12} tickMargin={10} stroke="#94a3b8" />
-                  <YAxis domain={[0, 10]} fontSize={12} stroke="#94a3b8" orientation={isRTL ? "right" : "left"} />
-                  <Tooltip 
-                    contentStyle={tooltipStyle}
-                    cursor={{ stroke: '#94a3b8', strokeWidth: 1, strokeDasharray: '5 5' }}
-                  />
-                  <Area type="monotone" dataKey="value" stroke="var(--color-primary-500)" fillOpacity={1} fill="url(#colorPressure)" />
-                  <Line type="monotone" dataKey="value" stroke="var(--color-primary-500)" strokeWidth={2} dot={{ r: 3, fill: "var(--color-primary-500)" }} />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
 
           {/* Alert Box if Critical */}
           {sensor.status === 'warning' && (
@@ -152,3 +344,45 @@ export const SensorModal: React.FC<SensorModalProps> = ({ sensor, onClose, lang 
     </div>
   );
 };
+
+class SensorModalBoundary extends React.Component<SensorModalInnerProps, { hasError: boolean }> {
+  constructor(props: SensorModalInnerProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: unknown, info: unknown) {
+    console.error('SensorModal render error', error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl p-6 max-w-md w-full text-center">
+            <p className="text-lg font-bold text-red-600 mb-2">حدث خطأ في عرض النقطة</p>
+            <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">يرجى إعادة المحاولة أو تحديث الصفحة.</p>
+            <button
+              className="px-4 py-2 bg-water-500 text-white rounded-lg shadow-sm hover:bg-water-600 transition-colors"
+              onClick={() => this.setState({ hasError: false })}
+            >
+              إعادة المحاولة
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return <SensorModalInner {...this.props} />;
+  }
+}
+
+export const SensorModal: React.FC<SensorModalProps> = ({ sensor, ...rest }) => {
+  if (!sensor) return null;
+  return <SensorModalBoundary {...rest} sensor={sensor} />;
+};
+
+export default SensorModal;

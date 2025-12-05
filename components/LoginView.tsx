@@ -4,6 +4,7 @@ import { Droplet, Mail, Lock, ArrowRight } from 'lucide-react';
 import { Language } from '../types';
 import { DICTIONARY } from '../constants';
 import { LanguageSwitcher } from './LanguageSwitcher';
+import { AuthError, login } from '../lib/auth';
 
 interface LoginViewProps {
   onLoginSuccess: () => void;
@@ -20,20 +21,23 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, lang, setL
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setIsLoading(true);
 
-    // Simulate API call
-    setTimeout(() => {
-      if (email === 'admin@hydromonitor.sa' && password === 'admin123') {
-        onLoginSuccess();
-      } else {
+    try {
+      await login(email, password);
+      onLoginSuccess();
+    } catch (err: unknown) {
+      if (err instanceof AuthError && err.code === 'INVALID_CREDENTIALS') {
         setError(t.invalidCredentials);
-        setIsLoading(false);
+      } else {
+        setError(t.loginServerError || t.invalidCredentials);
       }
-    }, 1000);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -77,7 +81,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, lang, setL
                        <Mail size={20} />
                     </div>
                     <input 
-                      type="email" 
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-3 px-10 outline-none focus:ring-2 focus:ring-water-500 transition-all dark:text-white text-sm font-medium"

@@ -86,7 +86,7 @@ export const PipeSystem: React.FC<PipeSystemProps> = ({ pipe, onSensorClick }) =
               <div className={`absolute -top-14 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-lg shadow-md text-sm font-bold whitespace-nowrap transition-colors
                 ${isWarning ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-white text-water-700 border border-water-100'}
               `}>
-                {sensor.pressure.toFixed(1)} Bar
+                {sensor.name || `${sensor.pressure.toFixed(1)} Bar`}
                 <div className={`absolute bottom-[-5px] left-1/2 -translate-x-1/2 w-2.5 h-2.5 rotate-45 border-b border-r 
                   ${isWarning ? 'bg-red-50 border-red-200' : 'bg-white border-water-100'}
                 `}></div>
