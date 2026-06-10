@@ -82,6 +82,52 @@ const buildColumnOrder = (maxColumns: number, preferredColumns: number) => {
 };
 
 const pointLabel = (point: CenterPoint) => String(point.name || '').trim() || PointGroupingService.pointDisplayCode(point);
+const estimatedCharWidth = (fontSize: number) => Math.max(2.6, fontSize * 0.56);
+
+const splitLongToken = (token: string, maxChars: number) => {
+  if (!token) return [];
+  if (token.length <= maxChars) return [token];
+
+  const parts: string[] = [];
+  for (let index = 0; index < token.length; index += maxChars) {
+    parts.push(token.slice(index, index + maxChars));
+  }
+  return parts;
+};
+
+const estimateWrappedLines = (value: string, width: number, fontSize: number) => {
+  const normalized = String(value || '').trim();
+  if (!normalized) return 0;
+
+  const maxChars = Math.max(2, Math.floor(width / estimatedCharWidth(fontSize)));
+  const tokens = normalized
+    .split(/\s+/)
+    .filter(Boolean)
+    .flatMap(token => splitLongToken(token, maxChars));
+
+  if (!tokens.length) return 0;
+
+  let lines = 1;
+  let current = '';
+
+  tokens.forEach(token => {
+    if (!current) {
+      current = token;
+      return;
+    }
+
+    const candidate = `${current} ${token}`;
+    if (candidate.length <= maxChars) {
+      current = candidate;
+      return;
+    }
+
+    lines += 1;
+    current = token;
+  });
+
+  return lines;
+};
 
 const estimateCardWidth = (
   point: CenterPoint,
@@ -159,39 +205,135 @@ const computeRowWidths = (
   };
 };
 
+const estimateCardHeight = (
+  point: CenterPoint,
+  cardWidth: number,
+  minHeight: number,
+  baseHeight: number,
+  maxHeight: number,
+  codeFontSize: number,
+  readingFontSize: number,
+  paddingX: number,
+  paddingY: number,
+  showReading: boolean,
+) => {
+  const label = pointLabel(point);
+  const readingLines = showReading ? PointGroupingService.pointReadingLinesWithUnit(point) : [];
+  const accentWidth = Math.max(2.6, Math.min(4.2, cardWidth * 0.05));
+  const badgeReserve = Math.max(16, codeFontSize * 2.65);
+  const contentWidth = Math.max(20, cardWidth - (paddingX * 2) - accentWidth - badgeReserve - 7);
+  const titleLines = Math.max(1, estimateWrappedLines(label, contentWidth, codeFontSize));
+  const titleLineHeight = Math.max(codeFontSize * 1.06, codeFontSize + 0.8);
+  const effectiveReadingFontSize = readingLines.length > 1
+    ? Math.max(5.6, readingFontSize - ((readingLines.length - 1) * 0.12))
+    : readingFontSize;
+  const readingLineHeight = Math.max(effectiveReadingFontSize * 1.2, effectiveReadingFontSize + 1.45);
+  const readingHeight = readingLines.length
+    ? (readingLines.length * readingLineHeight) + Math.max(4, paddingY * 0.8)
+    : 0;
+  const titleHeight = titleLines * titleLineHeight;
+  const desiredHeight = titleHeight
+    + readingHeight
+    + (paddingY * 4.7)
+    + (showReading ? 8 : 5);
+
+  return round(clamp(Math.max(baseHeight, desiredHeight), minHeight, maxHeight));
+};
+
+const computeRowHeights = (
+  points: CenterPoint[],
+  columns: number,
+  rowWidths: number[][],
+  minHeight: number,
+  baseHeight: number,
+  maxHeight: number,
+  codeFontSize: number,
+  readingFontSize: number,
+  paddingX: number,
+  paddingY: number,
+  showReading: boolean,
+  gapY: number,
+) => {
+  const rowHeights: number[][] = [];
+  const rowSpanHeights: number[] = [];
+  let totalHeight = 0;
+
+  for (let rowIndex = 0; rowIndex < rowWidths.length; rowIndex += 1) {
+    const rowStart = rowIndex * columns;
+    const rowPoints = points.slice(rowStart, rowStart + columns);
+    const widths = rowWidths[rowIndex] || [];
+    const heights = rowPoints.map((point, columnIndex) => {
+      const width = widths[columnIndex] ?? widths[widths.length - 1] ?? 0;
+      return estimateCardHeight(
+        point,
+        width,
+        minHeight,
+        baseHeight,
+        maxHeight,
+        codeFontSize,
+        readingFontSize,
+        paddingX,
+        paddingY,
+        showReading,
+      );
+    });
+
+    const rowSpanHeight = Math.max(...heights, baseHeight);
+    rowHeights.push(heights);
+    rowSpanHeights.push(round(rowSpanHeight));
+    totalHeight += rowSpanHeight;
+    if (rowIndex < rowWidths.length - 1) {
+      totalHeight += gapY;
+    }
+  }
+
+  return {
+    rowHeights,
+    rowSpanHeights,
+    totalHeight: round(totalHeight),
+  };
+};
+
 const buildCardLayout = (
   points: CenterPoint[],
   startX: number,
   startY: number,
   columns: number,
   rowWidths: number[][],
+  rowHeights: number[][],
+  rowSpanHeights: number[],
   fullRowWidth: number,
-  cardHeight: number,
   gapX: number,
   gapY: number,
 ) => {
   const rows = Math.ceil(points.length / columns);
   const placements: PointCardPlacement[] = [];
+  let currentY = startY;
 
   for (let rowIndex = 0; rowIndex < rows; rowIndex += 1) {
     const rowStart = rowIndex * columns;
     const rowPoints = points.slice(rowStart, rowStart + columns);
     const widths = rowWidths[rowIndex] || rowPoints.map(() => 0);
+    const heights = rowHeights[rowIndex] || rowPoints.map(() => 0);
+    const rowSpanHeight = rowSpanHeights[rowIndex] ?? Math.max(...heights, 0);
     const rowWidth = widths.reduce((sum, width) => sum + width, 0) + (gapX * Math.max(0, rowPoints.length - 1));
     const rowOffsetX = startX + Math.max(0, (fullRowWidth - rowWidth) / 2);
     let currentX = rowOffsetX;
 
     rowPoints.forEach((point, columnIndex) => {
       const width = widths[columnIndex] ?? widths[widths.length - 1] ?? 0;
+      const height = heights[columnIndex] ?? rowSpanHeight;
       placements.push({
         point,
         x: round(currentX),
-        y: round(startY + (rowIndex * (cardHeight + gapY))),
+        y: round(currentY + Math.max(0, (rowSpanHeight - height) / 2)),
         width: round(width),
-        height: round(cardHeight),
+        height: round(height),
       });
       currentX += width + gapX;
     });
+
+    currentY += rowSpanHeight + gapY;
   }
 
   return placements;
@@ -358,8 +500,8 @@ export const PointCardLayoutEngine = {
       readingFontSize: round(state.readingFontSize * POINT_CARD_FONT_SCALE),
       paddingX: round(state.paddingX * POINT_CARD_FONT_SCALE),
       paddingY: round(state.paddingY * POINT_CARD_FONT_SCALE),
-      gapX: round(state.gapX * 1.04),
-      gapY: round(state.gapY * 1.1),
+      gapX: round(state.gapX * 1.22),
+      gapY: round(state.gapY * 1.28),
       borderRadius: round(state.borderRadius * POINT_CARD_FONT_SCALE),
     }));
 
@@ -402,9 +544,7 @@ export const PointCardLayoutEngine = {
         const rawCardHeight = (innerHeight - (state.gapY * Math.max(0, rows - 1))) / rows;
         if (rawCardHeight < state.minHeight) continue;
 
-        const cardHeight = Math.min(state.maxHeight, rawCardHeight);
-        const totalHeight = (cardHeight * rows) + (state.gapY * Math.max(0, rows - 1));
-        if (totalHeight > innerHeight + 0.1) continue;
+        const baseCardHeight = Math.min(state.maxHeight, rawCardHeight);
 
         const widthLayout = computeRowWidths(
           points,
@@ -417,17 +557,34 @@ export const PointCardLayoutEngine = {
         );
         if (!widthLayout) continue;
 
+        const heightLayout = computeRowHeights(
+          points,
+          columns,
+          widthLayout.rowWidths,
+          state.minHeight,
+          baseCardHeight,
+          state.maxHeight,
+          state.codeFontSize,
+          state.readingFontSize,
+          state.paddingX,
+          state.paddingY,
+          state.showReading,
+          state.gapY,
+        );
+        if (heightLayout.totalHeight > innerHeight + 0.1) continue;
+
         const totalWidth = widthLayout.maxRowWidth;
         const startX = innerX + Math.max(0, (innerWidth - totalWidth) / 2);
-        const startY = innerY + Math.max(0, Math.min((innerHeight - totalHeight) / 2, visualWeight >= 5 ? 3 : 6));
+        const startY = innerY + Math.max(0, Math.min((innerHeight - heightLayout.totalHeight) / 2, visualWeight >= 5 ? 3 : 6));
         const cards = buildCardLayout(
           points,
           startX,
           startY,
           columns,
           widthLayout.rowWidths,
+          heightLayout.rowHeights,
+          heightLayout.rowSpanHeights,
           totalWidth,
-          cardHeight,
           state.gapX,
           state.gapY,
         );
@@ -471,8 +628,8 @@ export const PointCardLayoutEngine = {
       return plan;
     }
 
-    const emergencyGapX = 2.5;
-    const emergencyGapY = 2.5;
+    const emergencyGapX = 3.2;
+    const emergencyGapY = 3.6;
     const emergencyWidth = clamp(
       (innerWidth / Math.max(1, Math.min(points.length, 4))) - emergencyGapX,
       round(34 * POINT_CARD_WIDTH_SCALE),
@@ -499,6 +656,20 @@ export const PointCardLayoutEngine = {
       emergencyGapX,
       round(5.8 * POINT_CARD_FONT_SCALE),
     );
+    const emergencyHeightLayout = computeRowHeights(
+      points,
+      emergencyColumns,
+      emergencyWidthLayout?.rowWidths ?? buildUniformRowWidths(points, emergencyColumns, emergencyWidth),
+      round(18 * POINT_CARD_HEIGHT_SCALE),
+      emergencyHeight,
+      round(22 * POINT_CARD_HEIGHT_SCALE),
+      round(5.8 * POINT_CARD_FONT_SCALE),
+      round(4.8 * POINT_CARD_FONT_SCALE),
+      round(2.7 * POINT_CARD_FONT_SCALE),
+      round(2 * POINT_CARD_FONT_SCALE),
+      showCompactReading && points.length <= 10,
+      emergencyGapY,
+    );
     const emergencyTotalWidth = emergencyWidthLayout?.maxRowWidth
       ?? ((emergencyWidth * emergencyColumns) + (emergencyGapX * Math.max(0, emergencyColumns - 1)));
     const emergencyCards = buildCardLayout(
@@ -507,8 +678,9 @@ export const PointCardLayoutEngine = {
       innerY + 1,
       emergencyColumns,
       emergencyWidthLayout?.rowWidths ?? buildUniformRowWidths(points, emergencyColumns, emergencyWidth),
+      emergencyHeightLayout.rowHeights,
+      emergencyHeightLayout.rowSpanHeights,
       emergencyTotalWidth,
-      emergencyHeight,
       emergencyGapX,
       emergencyGapY,
     );
