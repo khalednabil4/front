@@ -323,7 +323,9 @@ export const RemoteTable: React.FC<RemoteTableProps> = ({ lang }) => {
                                     <input
                                         className="w-full p-2 rounded border"
                                         value={String(editing?.[col] ?? '')}
+                                        disabled={col === 'id'}
                                         onChange={e => {
+                                            if (col === 'id') return;
                                             const v = e.target.value;
                                             setEditing(prev => ({ ...(prev || {}), [col]: v }));
                                             setEditErrors(prev => {

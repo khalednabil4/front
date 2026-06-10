@@ -1,13 +1,14 @@
 
 import React, { useState } from 'react';
-import { Droplet, Mail, Lock, ArrowRight } from 'lucide-react';
+import { Mail, Lock, ArrowRight } from 'lucide-react';
 import { Language } from '../types';
 import { DICTIONARY } from '../constants';
 import { LanguageSwitcher } from './LanguageSwitcher';
-import { AuthError, login } from '../lib/auth';
+import { AuthError, AuthSession, login } from '../lib/auth';
+import { BRANDING, getCompanyName } from '../lib/branding';
 
 interface LoginViewProps {
-  onLoginSuccess: () => void;
+  onLoginSuccess: (session: AuthSession) => void;
   lang: Language;
   setLang: (lang: Language) => void;
 }
@@ -16,7 +17,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, lang, setL
   const t = DICTIONARY[lang];
   
   // Pre-filled credentials
-  const [email, setEmail] = useState('admin@hydromonitor.sa');
+  const [email, setEmail] = useState('admin@watermonitoring.local');
   const [password, setPassword] = useState('admin123');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -27,8 +28,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, lang, setL
     setIsLoading(true);
 
     try {
-      await login(email, password);
-      onLoginSuccess();
+      const session = await login(email, password);
+      onLoginSuccess(session);
     } catch (err: unknown) {
       if (err instanceof AuthError && err.code === 'INVALID_CREDENTIALS') {
         setError(t.invalidCredentials);
@@ -55,16 +56,25 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, lang, setL
         <LanguageSwitcher currentLang={lang} onToggle={setLang} isLoginPage={true} />
       </div>
 
-      <div className="relative z-10 w-full max-w-md bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+      <div className="relative z-10 w-full max-w-lg bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
          <div className="p-8 md:p-10">
             
             {/* Brand */}
             <div className="flex justify-center mb-8">
-              <div className="flex items-center gap-2 font-bold text-2xl tracking-wide text-slate-800 dark:text-white">
-                <div className="w-10 h-10 bg-water-500 rounded-xl flex items-center justify-center shadow-lg shadow-water-500/30">
-                   <Droplet className="text-white fill-current" size={24} />
+              <div className="flex flex-col items-center gap-3 text-center">
+                <img
+                  src={BRANDING.companyLogo}
+                  alt={getCompanyName(lang)}
+                  className="h-24 w-24 rounded-full object-contain"
+                />
+                <div>
+                  <p className="text-sm font-bold leading-tight text-slate-600 dark:text-slate-300">
+                    {getCompanyName(lang)}
+                  </p>
+                  <p className="mt-1 text-2xl font-black text-slate-800 dark:text-white">
+                    {BRANDING.appName}
+                  </p>
                 </div>
-                <span>HYDRO<span className="text-water-500">PRO</span></span>
               </div>
             </div>
 
@@ -129,7 +139,16 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, lang, setL
 
          </div>
          <div className="bg-slate-50 dark:bg-slate-900/50 p-4 text-center border-t border-slate-100 dark:border-slate-700">
-            <p className="text-xs text-slate-500 dark:text-slate-400">© 2025 HydroPro Monitoring Systems</p>
+            <div className="flex items-center justify-center gap-3">
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                {lang === 'ar' ? 'تطوير' : 'Developed by'}
+              </span>
+              <img
+                src={BRANDING.developerLogo}
+                alt={BRANDING.developerName}
+                className="h-8 w-20 rounded bg-white object-contain p-1 shadow-sm"
+              />
+            </div>
          </div>
       </div>
     </div>

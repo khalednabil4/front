@@ -1,0 +1,30 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Damietta Water and Wastewater Company</title>
+  <desc id="desc">Water company logo inspired by the supplied Damietta company mark.</desc>
+  <defs>
+    <radialGradient id="waterGlow" cx="36%" cy="40%" r="65%">
+      <stop offset="0" stop-color="#ecfeff"/>
+      <stop offset="0.32" stop-color="#67e8f9"/>
+      <stop offset="0.7" stop-color="#0ea5e9"/>
+      <stop offset="1" stop-color="#0369a1"/>
+    </radialGradient>
+    <linearGradient id="deepBlue" x1="130" y1="80" x2="360" y2="330" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#075985"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="none"/>
+  <g transform="translate(36 18)">
+    <path d="M250 26c85 22 145 92 145 178 0 97-79 176-176 176S43 301 43 204C43 113 111 37 202 24c-37 28-59 71-59 120 0 82 66 148 148 148 26 0 51-7 72-19-26 61-86 104-156 104" fill="url(#waterGlow)"/>
+    <path d="M284 47c-63 38-91 88-84 151 8 71 60 124 132 134-33 28-75 44-121 44-96 0-174-78-174-174 0-88 65-160 149-172-25 26-40 62-40 101 0 82 66 148 148 148 36 0 69-13 94-34-7 42-37 75-76 92 62-24 103-83 103-149 0-61-35-116-88-143-13-7-27-12-43-16z" fill="url(#deepBlue)" opacity=".44"/>
+    <path d="M247 35c20 26 17 54-10 77l-30 24c-17 14-19 34-5 50 18 21 15 47-9 67l-30 25" fill="none" stroke="#fff" stroke-width="15" stroke-linecap="round"/>
+    <path d="M304 96l65 138H238L304 96z" fill="#fff"/>
+    <path d="M310 109v114h53L310 109z" fill="#e0f2fe"/>
+    <path d="M250 232h143" stroke="#facc15" stroke-width="13" stroke-linecap="round"/>
+    <path d="M302 96v140" stroke="#075985" stroke-width="10" stroke-linecap="round"/>
+  </g>
+  <g fill="#075985" font-family="Cairo, Arial, sans-serif" font-weight="800" text-anchor="middle">
+    <text x="256" y="420" font-size="33">شركة مياه الشرب</text>
+    <text x="256" y="462" font-size="31">والصرف الصحي بدمياط</text>
+  </g>
+</svg>

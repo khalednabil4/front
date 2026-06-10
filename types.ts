@@ -58,13 +58,57 @@ export interface ReportMetric {
   trend: 'up' | 'down' | 'neutral';
 }
 
+export interface PermissionSummary {
+  model: string;
+  actions: string[];
+}
+
+export interface AuthMetadata {
+  userId?: number;
+  username?: string;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  permissions?: PermissionSummary[];
+  isSuperuser?: boolean;
+  isStaff?: boolean;
+  company?: { id: number; name: string } | null;
+  group?: { id: number; name: string } | null;
+}
+
+export type NotificationSeverity = 'error' | 'warn' | 'info';
+
+export interface NotificationPoint {
+  id: number;
+  name: string;
+  code: string;
+  dma_id: number | null;
+  dmz_id: number | null;
+}
+
+export interface NotificationCompany {
+  id: number;
+  name: string;
+}
+
 export interface Notification {
-  id: string;
+  id: number;
+  notification_type: string;
+  severity: NotificationSeverity;
   title: string;
   message: string;
-  time: string;
-  type: 'alert' | 'info' | 'success';
-  read: boolean;
+  source_path: string | null;
+  created_at: string;
+  point: NotificationPoint | null;
+  function_schedule: unknown | null;
+  company: NotificationCompany | null;
+}
+
+export interface NotificationSummary {
+  total: number;
+  by_severity: Partial<Record<NotificationSeverity, number>>;
+  latest: Notification | null;
 }
 
 export interface DynamicField {
@@ -86,21 +130,18 @@ export type View =
   | 'areas'
   | 'stations'
   | 'reports'
+  | 'points-charts'
+  | 'stations-work'
   | 'profile'
-  | 'dynamic-table'
-  | 'dynamic-create'
-  | 'newpage'
+  | 'report-v1'
+  | 'damietta-map'
+  | 'centers-map'
+  | 'water-valves'
   | 'companies'
   | 'dm'
-  | 'provinces'
   | 'centers'
   | 'villages'
-  | 'device-types'
-  | 'measure-types'
-  | 'measure-devices'
   | 'points'
   | 'readings'
-  | 'dma-field-surveys'
-  | 'dmz-network-data'
-  | 'units'
-  | 'connection-types';
+  | 'permissions'
+  | 'users';

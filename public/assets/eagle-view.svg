@@ -1,0 +1,35 @@
+<svg width="640" height="480" viewBox="0 0 640 480" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Eagle View</title>
+  <desc id="desc">Developer company logo inspired by the supplied Eagle View mark.</desc>
+  <defs>
+    <linearGradient id="wingBlue" x1="64" y1="58" x2="582" y2="214" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2563eb"/>
+      <stop offset="1" stop-color="#38bdf8"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="480" fill="none"/>
+  <g fill="none" stroke="url(#wingBlue)" stroke-width="22" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M66 82l270 135c40 21 72 40 93 67l8 10v22c16 17 24 34 22 52-2 20-13 39-34 56-39-52-98-82-178-91-42-5-85-2-129 7l-68-34"/>
+    <path d="M109 107l76 40 210 105 41 35"/>
+    <path d="M174 171l32 95 118 56"/>
+    <path d="M226 238l12 58 64 30"/>
+    <path d="M573 68L330 173"/>
+    <path d="M540 101l-68 32-140 59"/>
+    <path d="M501 166l-24 60-108 36"/>
+    <path d="M439 231l-15 54-70 23"/>
+  </g>
+  <g fill="none" stroke="#1d4ed8" stroke-width="12">
+    <circle cx="322" cy="173" r="16" fill="#fff"/>
+    <circle cx="365" cy="212" r="16" fill="#fff"/>
+    <circle cx="405" cy="253" r="16" fill="#fff"/>
+    <circle cx="438" cy="295" r="16" fill="#fff"/>
+    <circle cx="147" cy="321" r="16" fill="#fff"/>
+    <circle cx="242" cy="279" r="16" fill="#fff"/>
+    <circle cx="306" cy="286" r="16" fill="#fff"/>
+    <circle cx="396" cy="319" r="16" fill="#fff"/>
+  </g>
+  <g font-family="Inter, Arial, sans-serif" text-anchor="middle">
+    <text x="321" y="382" font-size="67" font-weight="900" fill="#0f3f83">Eagle</text>
+    <text x="321" y="430" font-size="55" font-weight="600" fill="#2f8cf0">View</text>
+  </g>
+</svg>

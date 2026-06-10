@@ -1,4 +1,4 @@
-# Deploying HydroMonitor Pro to Hostinger
+# Deploying Water Monitoring to Hostinger
 
 ## Prerequisites
 - Hostinger account with web hosting plan
@@ -67,7 +67,7 @@ If you need to set the API key after deployment, you can modify the `index.html`
 ## Step 5: Verify Deployment
 
 1. Visit your domain (e.g., `https://yourdomain.com`)
-2. The HydroMonitor Pro application should load
+2. The Water Monitoring application should load
 3. Test the functionality to ensure everything works
 
 ## Troubleshooting
