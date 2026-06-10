@@ -4,11 +4,13 @@ import { CenterLabelLayout, CenterPoint, MapRegion, PointCardPlacement, PointCar
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 const round = (value: number) => Math.round(value * 100) / 100;
-const POINT_CARD_WIDTH_SCALE = 1.24;
-const POINT_CARD_HEIGHT_SCALE = 1.38;
-const POINT_CARD_FONT_SCALE = 1.2;
-const LONG_NAME_START = 10;
-const MAX_LONG_NAME_WIDTH_BOOST = 42;
+const POINT_CARD_WIDTH_SCALE = 1.34;
+const POINT_CARD_HEIGHT_SCALE = 1.62;
+const POINT_CARD_FONT_SCALE = 1.28;
+const POINT_CARD_GAP_X_SCALE = 1.7;
+const POINT_CARD_GAP_Y_SCALE = 1.88;
+const LONG_NAME_START = 8;
+const MAX_LONG_NAME_WIDTH_BOOST = 72;
 
 const pointInsidePolygon = (x: number, y: number, polygon: Array<{ x: number; y: number }>) => {
   let inside = false;
@@ -146,10 +148,10 @@ const estimateCardWidth = (
   if (!overflowChars) return round(baseWidth);
 
   const contentForSpacing = [label, ...readingLines].join(' ');
-  const spaceBoost = (contentForSpacing.match(/\s/g) || []).length * Math.max(0.9, fontSize * 0.16);
+  const spaceBoost = (contentForSpacing.match(/\s/g) || []).length * Math.max(1.2, fontSize * 0.22);
   const extraWidth = Math.min(
     MAX_LONG_NAME_WIDTH_BOOST,
-    (overflowChars * Math.max(1.25, fontSize * 0.4)) + spaceBoost,
+    (overflowChars * Math.max(1.75, fontSize * 0.56)) + spaceBoost,
   );
 
   return round(Math.max(minWidth, baseWidth + extraWidth));
@@ -223,19 +225,21 @@ const estimateCardHeight = (
   const badgeReserve = Math.max(16, codeFontSize * 2.65);
   const contentWidth = Math.max(20, cardWidth - (paddingX * 2) - accentWidth - badgeReserve - 7);
   const titleLines = Math.max(1, estimateWrappedLines(label, contentWidth, codeFontSize));
-  const titleLineHeight = Math.max(codeFontSize * 1.06, codeFontSize + 0.8);
+  const titleLineHeight = Math.max(codeFontSize * 1.13, codeFontSize + 1.1);
   const effectiveReadingFontSize = readingLines.length > 1
-    ? Math.max(5.6, readingFontSize - ((readingLines.length - 1) * 0.12))
+    ? Math.max(6.8, readingFontSize - ((readingLines.length - 1) * 0.08))
     : readingFontSize;
-  const readingLineHeight = Math.max(effectiveReadingFontSize * 1.2, effectiveReadingFontSize + 1.45);
+  const readingLineHeight = Math.max(effectiveReadingFontSize * 1.28, effectiveReadingFontSize + 1.8);
   const readingHeight = readingLines.length
-    ? (readingLines.length * readingLineHeight) + Math.max(4, paddingY * 0.8)
+    ? (readingLines.length * readingLineHeight) + Math.max(6, paddingY * 1.4)
     : 0;
   const titleHeight = titleLines * titleLineHeight;
+  const bodyReserve = showReading ? Math.max(7, paddingY * 2.1) : 0;
   const desiredHeight = titleHeight
     + readingHeight
-    + (paddingY * 4.7)
-    + (showReading ? 8 : 5);
+    + bodyReserve
+    + (paddingY * 5.4)
+    + (showReading ? 10 : 6);
 
   return round(clamp(Math.max(baseHeight, desiredHeight), minHeight, maxHeight));
 };
@@ -500,8 +504,8 @@ export const PointCardLayoutEngine = {
       readingFontSize: round(state.readingFontSize * POINT_CARD_FONT_SCALE),
       paddingX: round(state.paddingX * POINT_CARD_FONT_SCALE),
       paddingY: round(state.paddingY * POINT_CARD_FONT_SCALE),
-      gapX: round(state.gapX * 1.22),
-      gapY: round(state.gapY * 1.28),
+      gapX: round(state.gapX * POINT_CARD_GAP_X_SCALE),
+      gapY: round(state.gapY * POINT_CARD_GAP_Y_SCALE),
       borderRadius: round(state.borderRadius * POINT_CARD_FONT_SCALE),
     }));
 
@@ -628,8 +632,8 @@ export const PointCardLayoutEngine = {
       return plan;
     }
 
-    const emergencyGapX = 3.2;
-    const emergencyGapY = 3.6;
+    const emergencyGapX = 5.4;
+    const emergencyGapY = 6.2;
     const emergencyWidth = clamp(
       (innerWidth / Math.max(1, Math.min(points.length, 4))) - emergencyGapX,
       round(34 * POINT_CARD_WIDTH_SCALE),

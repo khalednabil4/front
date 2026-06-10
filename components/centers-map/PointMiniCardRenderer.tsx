@@ -14,6 +14,11 @@ type CardTextLine = {
   fill: string;
 };
 
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+const MIN_TITLE_FONT_SIZE = 6.8;
+const MIN_SECONDARY_FONT_SIZE = 6.2;
+const MIN_READING_FONT_SIZE = 6.8;
+
 const estimatedCharWidth = (fontSize: number) => Math.max(2.6, fontSize * 0.56);
 
 const splitLongToken = (token: string, maxChars: number) => {
@@ -71,21 +76,21 @@ const fitCardLabel = (
   baseFontSize: number,
 ) => {
   const fontCandidates = [
+    baseFontSize + 1.1,
+    baseFontSize + 0.75,
     baseFontSize + 0.4,
     baseFontSize,
     baseFontSize - 0.35,
     baseFontSize - 0.7,
     baseFontSize - 1.05,
     baseFontSize - 1.4,
-    baseFontSize - 1.75,
-    baseFontSize - 2.1,
-  ].filter((value, index, array) => value > 3.4 && array.indexOf(value) === index);
+  ].filter((value, index, array) => value >= MIN_TITLE_FONT_SIZE && array.indexOf(value) === index);
 
   let fallback: { lines: CardTextLine[]; lineGap: number; height: number; fits: boolean } | null = null;
 
   for (const numberFontSize of fontCandidates) {
-    const safeNumberFontSize = Math.max(4.2, numberFontSize);
-    const nameFontSize = Math.max(3.6, safeNumberFontSize - 1.15);
+    const safeNumberFontSize = Math.max(MIN_TITLE_FONT_SIZE, numberFontSize);
+    const nameFontSize = Math.max(MIN_SECONDARY_FONT_SIZE, safeNumberFontSize - 1.05);
     const numberLines = wrapText(numberText, width, safeNumberFontSize);
     const nameLines = nameText ? wrapText(nameText, width, nameFontSize) : [];
 
@@ -106,7 +111,7 @@ const fitCardLabel = (
 
     if (!lines.length) continue;
 
-    const lineGap = Math.max(0.8, Math.min(1.9, nameFontSize * 0.28));
+    const lineGap = Math.max(1.05, Math.min(2.4, nameFontSize * 0.32));
     const labelHeight = lines.reduce((sum, line) => sum + line.fontSize, 0) + (lineGap * Math.max(0, lines.length - 1));
     const candidate = {
       lines,
@@ -170,10 +175,20 @@ export const PointMiniCardRenderer: React.FC<PointMiniCardRendererProps> = ({ ca
   const contentLeft = card.x + Math.max(7, plan.paddingX + accentWidth + 4);
   const rawReadingLines = wantsReading ? readingLinesWithUnit : [];
   const readingLineCount = rawReadingLines.length;
+  const adaptiveTitleFontSize = clamp(
+    Math.max(plan.codeFontSize, Math.min(card.width * 0.13, card.height * (wantsReading ? 0.2 : 0.28))),
+    plan.codeFontSize,
+    plan.codeFontSize + 1.4,
+  );
+  const adaptiveReadingFontSize = clamp(
+    Math.max(plan.readingFontSize, Math.min(card.width * 0.1, card.height * 0.16)),
+    plan.readingFontSize,
+    plan.readingFontSize + 1.15,
+  );
   const effectiveReadingFontSize = readingLineCount > 1
-    ? Math.max(5.6, plan.readingFontSize - ((readingLineCount - 1) * 0.18))
-    : plan.readingFontSize;
-  const readingLineGapBase = Math.max(1.1, effectiveReadingFontSize * 0.24);
+    ? Math.max(MIN_READING_FONT_SIZE, adaptiveReadingFontSize - ((readingLineCount - 1) * 0.08))
+    : Math.max(MIN_READING_FONT_SIZE, adaptiveReadingFontSize);
+  const readingLineGapBase = Math.max(1.35, effectiveReadingFontSize * 0.28);
   const readingReserveHeight = readingLineCount > 0
     ? (effectiveReadingFontSize * readingLineCount) + (readingLineGapBase * Math.max(0, readingLineCount - 1)) + 3
     : 0;
@@ -182,26 +197,28 @@ export const PointMiniCardRenderer: React.FC<PointMiniCardRendererProps> = ({ ca
   const safeWidth = Math.max(14, badgeCx - contentLeft - badgeRadius - 3);
   const labelHeightWithReading = Math.max(10, card.height - (plan.paddingY * 2) - readingReserveHeight);
   const labelHeightWithoutReading = Math.max(10, card.height - (plan.paddingY * 2));
-  const preferredLabelWithReading = fitCardLabel(primaryLabel, '', safeWidth - 2, labelHeightWithReading, tone, plan.codeFontSize);
+  const preferredLabelWithReading = fitCardLabel(primaryLabel, '', safeWidth - 2, labelHeightWithReading, tone, adaptiveTitleFontSize);
   const showReading = wantsReading && preferredLabelWithReading.fits;
   const labelBlock = showReading
     ? preferredLabelWithReading
-    : fitCardLabel(primaryLabel, '', safeWidth - 2, labelHeightWithoutReading, tone, plan.codeFontSize);
-  const readingLineGap = Math.max(1.35, effectiveReadingFontSize * 0.32);
+    : fitCardLabel(primaryLabel, '', safeWidth - 2, labelHeightWithoutReading, tone, adaptiveTitleFontSize);
+  const readingLineGap = Math.max(1.55, effectiveReadingFontSize * 0.34);
   const readingLines = showReading ? rawReadingLines : [];
   const readingBlockHeight = showReading && readingLineCount > 0
     ? (effectiveReadingFontSize * readingLineCount) + (readingLineGap * Math.max(0, readingLineCount - 1))
     : 0;
   const borderInset = Math.max(0.9, plan.borderWidth * 0.72);
   const innerWidth = Math.max(0, card.width - (borderInset * 2));
-  const minimumBodyHeight = showReading ? readingBlockHeight + (plan.paddingY * 1.75) + 2.8 : 0;
+  const minimumBodyHeight = showReading ? readingBlockHeight + (plan.paddingY * 2.25) + 4.2 : 0;
   const minHeaderHeight = Math.min(card.height - 1.6, labelBlock.height + (plan.paddingY * 1.5) + 1.2);
   const maxHeaderHeight = Math.max(minHeaderHeight, card.height - minimumBodyHeight - 1.2);
   const idealHeaderHeight = labelBlock.height + (plan.paddingY * 2.15) + (showReading ? 2.4 : 4.2);
-  const headerHeight = Math.min(
-    maxHeaderHeight,
-    Math.max(minHeaderHeight, Math.max(idealHeaderHeight, card.height * (showReading ? 0.48 : 0.66))),
-  );
+  const headerHeight = showReading
+    ? clamp(idealHeaderHeight, minHeaderHeight, maxHeaderHeight)
+    : Math.min(
+        maxHeaderHeight,
+        Math.max(minHeaderHeight, Math.max(idealHeaderHeight, card.height * 0.66)),
+      );
   const badgeCy = Math.min(
     card.y + headerHeight - badgeRadius - 1.1,
     Math.max(card.y + borderInset + badgeRadius + 1.1, card.y + (headerHeight / 2)),
@@ -342,7 +359,7 @@ export const PointMiniCardRenderer: React.FC<PointMiniCardRendererProps> = ({ ca
         x={badgeCx}
         y={badgeCy + (Math.max(2.1, plan.codeFontSize * 0.31))}
         textAnchor="middle"
-        fontSize={Math.max(5.4, plan.codeFontSize - 1.7)}
+        fontSize={Math.max(6.1, adaptiveTitleFontSize - 1.65)}
         fontWeight={900}
         fill={tone.border}
         direction="ltr"
