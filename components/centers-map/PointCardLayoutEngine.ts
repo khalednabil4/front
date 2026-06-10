@@ -4,10 +4,11 @@ import { CenterLabelLayout, CenterPoint, MapRegion, PointCardPlacement, PointCar
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 const round = (value: number) => Math.round(value * 100) / 100;
-const POINT_CARD_SCALE = 1.1;
-const POINT_CARD_FONT_SCALE = 1.05;
-const LONG_NAME_START = 11;
-const MAX_LONG_NAME_WIDTH_BOOST = 30;
+const POINT_CARD_WIDTH_SCALE = 1.24;
+const POINT_CARD_HEIGHT_SCALE = 1.38;
+const POINT_CARD_FONT_SCALE = 1.2;
+const LONG_NAME_START = 10;
+const MAX_LONG_NAME_WIDTH_BOOST = 42;
 
 const pointInsidePolygon = (x: number, y: number, polygon: Array<{ x: number; y: number }>) => {
   let inside = false;
@@ -89,15 +90,20 @@ const estimateCardWidth = (
   fontSize: number,
 ) => {
   const label = pointLabel(point).replace(/\s+/g, ' ').trim();
-  if (!label) return round(baseWidth);
+  const readingLines = PointGroupingService.pointReadingLinesWithUnit(point)
+    .map(line => String(line || '').replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+  const widestContentLength = Math.max(label.length, ...readingLines.map(line => line.length));
+  if (!widestContentLength) return round(baseWidth);
 
-  const overflowChars = Math.max(0, label.length - LONG_NAME_START);
+  const overflowChars = Math.max(0, widestContentLength - LONG_NAME_START);
   if (!overflowChars) return round(baseWidth);
 
-  const spaceBoost = (label.match(/\s/g) || []).length * Math.max(0.7, fontSize * 0.14);
+  const contentForSpacing = [label, ...readingLines].join(' ');
+  const spaceBoost = (contentForSpacing.match(/\s/g) || []).length * Math.max(0.9, fontSize * 0.16);
   const extraWidth = Math.min(
     MAX_LONG_NAME_WIDTH_BOOST,
-    (overflowChars * Math.max(1.1, fontSize * 0.34)) + spaceBoost,
+    (overflowChars * Math.max(1.25, fontSize * 0.4)) + spaceBoost,
   );
 
   return round(Math.max(minWidth, baseWidth + extraWidth));
@@ -242,7 +248,7 @@ export const PointCardLayoutEngine = {
     const showCompactReading = hasReading && points.length <= 18;
     const maxReadingLines = hasReading
       ? points.reduce((maxLines, point) => {
-          const entryCount = PointGroupingService.pointReadingEntries(point, 'compact').length;
+          const entryCount = PointGroupingService.pointReadingLinesWithUnit(point).length;
           const fallbackCount = PointGroupingService.pointReading(point).trim() ? 1 : 0;
           return Math.max(maxLines, Math.max(entryCount, fallbackCount));
         }, 0)
@@ -344,14 +350,16 @@ export const PointCardLayoutEngine = {
       },
     ].map(state => ({
       ...state,
-      minWidth: round(state.minWidth * POINT_CARD_SCALE),
-      maxWidth: round(state.maxWidth * POINT_CARD_SCALE),
-      minHeight: round(state.minHeight * POINT_CARD_SCALE),
-      maxHeight: round(state.maxHeight * POINT_CARD_SCALE),
+      minWidth: round(state.minWidth * POINT_CARD_WIDTH_SCALE),
+      maxWidth: round(state.maxWidth * POINT_CARD_WIDTH_SCALE),
+      minHeight: round(state.minHeight * POINT_CARD_HEIGHT_SCALE),
+      maxHeight: round(state.maxHeight * POINT_CARD_HEIGHT_SCALE),
       codeFontSize: round(state.codeFontSize * POINT_CARD_FONT_SCALE),
       readingFontSize: round(state.readingFontSize * POINT_CARD_FONT_SCALE),
       paddingX: round(state.paddingX * POINT_CARD_FONT_SCALE),
       paddingY: round(state.paddingY * POINT_CARD_FONT_SCALE),
+      gapX: round(state.gapX * 1.04),
+      gapY: round(state.gapY * 1.1),
       borderRadius: round(state.borderRadius * POINT_CARD_FONT_SCALE),
     }));
 
@@ -467,13 +475,13 @@ export const PointCardLayoutEngine = {
     const emergencyGapY = 2.5;
     const emergencyWidth = clamp(
       (innerWidth / Math.max(1, Math.min(points.length, 4))) - emergencyGapX,
-      round(34 * POINT_CARD_SCALE),
-      round(46 * POINT_CARD_SCALE),
+      round(34 * POINT_CARD_WIDTH_SCALE),
+      round(46 * POINT_CARD_WIDTH_SCALE),
     );
     const emergencyHeight = clamp(
       (innerHeight / Math.max(1, Math.min(points.length, 4))) - emergencyGapY,
-      round(16 * POINT_CARD_SCALE),
-      round(20 * POINT_CARD_SCALE),
+      round(18 * POINT_CARD_HEIGHT_SCALE),
+      round(22 * POINT_CARD_HEIGHT_SCALE),
     );
     const emergencyMaxColumns = Math.max(1, Math.floor((innerWidth + emergencyGapX) / (emergencyWidth + emergencyGapX)));
     const emergencyRowsPerColumn = Math.max(1, Math.floor((innerHeight + emergencyGapY) / (emergencyHeight + emergencyGapY)));
@@ -486,7 +494,7 @@ export const PointCardLayoutEngine = {
       points,
       emergencyColumns,
       emergencyWidth,
-      round(34 * POINT_CARD_SCALE),
+      round(34 * POINT_CARD_WIDTH_SCALE),
       innerWidth,
       emergencyGapX,
       round(5.8 * POINT_CARD_FONT_SCALE),
@@ -509,8 +517,8 @@ export const PointCardLayoutEngine = {
       showReading: showCompactReading && points.length <= 10,
       codeFontSize: round(5.8 * POINT_CARD_FONT_SCALE),
       readingFontSize: round(4.8 * POINT_CARD_FONT_SCALE),
-      paddingX: 2.5,
-      paddingY: 1.8,
+      paddingX: round(2.7 * POINT_CARD_FONT_SCALE),
+      paddingY: round(2 * POINT_CARD_FONT_SCALE),
       gapX: emergencyGapX,
       gapY: emergencyGapY,
       borderRadius: round(4.5 * POINT_CARD_FONT_SCALE),

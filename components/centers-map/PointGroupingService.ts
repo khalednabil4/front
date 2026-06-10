@@ -244,6 +244,46 @@ export const PointGroupingService = {
     return [];
   },
 
+  pointReadingLinesWithUnit(point: CenterPoint) {
+    const reading = point.reading;
+    const metricTypes = this.pointMetricTypes(point);
+
+    if (!reading || reading.is_missing) {
+      return metricTypes.length ? metricTypes.map(() => EMPTY_TYPED_READING) : [EMPTY_READING_TEXT];
+    }
+
+    const entries = metricTypes
+      .map(metricKey => {
+        const value = reading[readingValueKeyByType[metricKey]];
+        const unit = reading[readingUnitKeyByType[metricKey]];
+        return toMetricValue(value as number | null | undefined, unit as string | null | undefined) || EMPTY_TYPED_READING;
+      })
+      .filter(Boolean) as string[];
+
+    if (entries.length) return entries;
+
+    if (typeof reading.display === 'string' && reading.display.trim()) {
+      return [reading.display.trim()];
+    }
+
+    const primaryType = this.pointPrimaryType(point);
+    const preferredReading = toMetricValue(
+      reading[primaryType as keyof typeof reading] as number | null | undefined,
+      reading[`unit_${primaryType}` as keyof typeof reading] as string | null | undefined,
+    );
+    if (preferredReading) return [preferredReading];
+
+    for (const [valueKey, unitKey] of readingOrder) {
+      const nextValue = toMetricValue(
+        reading[valueKey as keyof typeof reading] as number | null | undefined,
+        reading[unitKey as keyof typeof reading] as string | null | undefined,
+      );
+      if (nextValue) return [nextValue];
+    }
+
+    return [EMPTY_READING_TEXT];
+  },
+
   pointHasReadableMetric(point: CenterPoint) {
     const declaredTypes = Array.isArray(point.point_type) ? point.point_type : [];
     return declaredTypes.length > 0 || this.pointReadingEntries(point).length > 0;

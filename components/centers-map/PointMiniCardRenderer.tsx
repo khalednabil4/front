@@ -160,25 +160,24 @@ export const PointMiniCardRenderer: React.FC<PointMiniCardRendererProps> = ({ ca
       };
   const primaryLabel = String(card.point.name || '').trim() || PointGroupingService.pointDisplayCode(card.point);
   const pointTypeIndicator = PointGroupingService.pointTypeIndicator(card.point);
-  const readingEntries = PointGroupingService.pointReadingEntries(card.point, 'compact');
-  const readingValue = PointGroupingService.pointReading(card.point);
-  const wantsReading = plan.showReading && (readingEntries.length > 0 || Boolean(readingValue));
-  const isMissingReading = readingEntries.length === 0 && String(readingValue || '').trim() === '----';
+  const readingLinesWithUnit = PointGroupingService.pointReadingLinesWithUnit(card.point);
+  const wantsReading = plan.showReading && readingLinesWithUnit.length > 0;
+  const isMissingReading = readingLinesWithUnit.every(
+    line => !String(line || '').trim() || /^(----|\.{4,})$/.test(String(line || '').trim()),
+  );
 
   const accentWidth = Math.max(2.1, Math.min(3.4, card.width * 0.045));
   const contentLeft = card.x + Math.max(7, plan.paddingX + accentWidth + 4);
-  const rawReadingLines = wantsReading
-    ? (readingEntries.length ? readingEntries.map(entry => entry.compact) : [String(readingValue)])
-    : [];
+  const rawReadingLines = wantsReading ? readingLinesWithUnit : [];
   const readingLineCount = rawReadingLines.length;
   const effectiveReadingFontSize = readingLineCount > 1
-    ? Math.max(3.9, plan.readingFontSize - ((readingLineCount - 1) * 0.35))
+    ? Math.max(5.6, plan.readingFontSize - ((readingLineCount - 1) * 0.18))
     : plan.readingFontSize;
-  const readingLineGapBase = Math.max(0.8, effectiveReadingFontSize * 0.22);
+  const readingLineGapBase = Math.max(1.1, effectiveReadingFontSize * 0.24);
   const readingReserveHeight = readingLineCount > 0
     ? (effectiveReadingFontSize * readingLineCount) + (readingLineGapBase * Math.max(0, readingLineCount - 1)) + 3
     : 0;
-  const badgeRadius = Math.max(5, Math.min(7.2, card.height * (wantsReading ? 0.21 : 0.25)));
+  const badgeRadius = Math.max(5.8, Math.min(8.2, card.height * (wantsReading ? 0.22 : 0.26)));
   const badgeCx = card.x + card.width - plan.paddingX - badgeRadius - 1;
   const safeWidth = Math.max(14, badgeCx - contentLeft - badgeRadius - 3);
   const labelHeightWithReading = Math.max(10, card.height - (plan.paddingY * 2) - readingReserveHeight);
@@ -188,7 +187,7 @@ export const PointMiniCardRenderer: React.FC<PointMiniCardRendererProps> = ({ ca
   const labelBlock = showReading
     ? preferredLabelWithReading
     : fitCardLabel(primaryLabel, '', safeWidth - 2, labelHeightWithoutReading, tone, plan.codeFontSize);
-  const readingLineGap = Math.max(1.1, effectiveReadingFontSize * 0.3);
+  const readingLineGap = Math.max(1.35, effectiveReadingFontSize * 0.32);
   const readingLines = showReading ? rawReadingLines : [];
   const readingBlockHeight = showReading && readingLineCount > 0
     ? (effectiveReadingFontSize * readingLineCount) + (readingLineGap * Math.max(0, readingLineCount - 1))
