@@ -184,9 +184,7 @@ export const PointMiniCardRenderer: React.FC<PointMiniCardRendererProps> = ({ ca
   const labelHeightWithReading = Math.max(10, card.height - (plan.paddingY * 2) - readingReserveHeight);
   const labelHeightWithoutReading = Math.max(10, card.height - (plan.paddingY * 2));
   const preferredLabelWithReading = fitCardLabel(primaryLabel, '', safeWidth - 2, labelHeightWithReading, tone, plan.codeFontSize);
-  const maxSingleLineChars = Math.max(10, Math.floor((safeWidth - 4) / estimatedCharWidth(Math.max(plan.codeFontSize, 6.2))));
-  const longNameNeedsFullCard = preferredLabelWithReading.lines.length > 1 || primaryLabel.length > (maxSingleLineChars + 1);
-  const showReading = wantsReading && preferredLabelWithReading.fits && !longNameNeedsFullCard;
+  const showReading = wantsReading && preferredLabelWithReading.fits;
   const labelBlock = showReading
     ? preferredLabelWithReading
     : fitCardLabel(primaryLabel, '', safeWidth - 2, labelHeightWithoutReading, tone, plan.codeFontSize);

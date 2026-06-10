@@ -6,6 +6,8 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 const round = (value: number) => Math.round(value * 100) / 100;
 const POINT_CARD_SCALE = 1.1;
 const POINT_CARD_FONT_SCALE = 1.05;
+const LONG_NAME_START = 11;
+const MAX_LONG_NAME_WIDTH_BOOST = 30;
 
 const pointInsidePolygon = (x: number, y: number, polygon: Array<{ x: number; y: number }>) => {
   let inside = false;
@@ -78,38 +80,128 @@ const buildColumnOrder = (maxColumns: number, preferredColumns: number) => {
   return ordered;
 };
 
+const pointLabel = (point: CenterPoint) => String(point.name || '').trim() || PointGroupingService.pointDisplayCode(point);
+
+const estimateCardWidth = (
+  point: CenterPoint,
+  baseWidth: number,
+  minWidth: number,
+  fontSize: number,
+) => {
+  const label = pointLabel(point).replace(/\s+/g, ' ').trim();
+  if (!label) return round(baseWidth);
+
+  const overflowChars = Math.max(0, label.length - LONG_NAME_START);
+  if (!overflowChars) return round(baseWidth);
+
+  const spaceBoost = (label.match(/\s/g) || []).length * Math.max(0.7, fontSize * 0.14);
+  const extraWidth = Math.min(
+    MAX_LONG_NAME_WIDTH_BOOST,
+    (overflowChars * Math.max(1.1, fontSize * 0.34)) + spaceBoost,
+  );
+
+  return round(Math.max(minWidth, baseWidth + extraWidth));
+};
+
+const computeRowWidths = (
+  points: CenterPoint[],
+  columns: number,
+  baseWidth: number,
+  minWidth: number,
+  availableWidth: number,
+  gapX: number,
+  fontSize: number,
+) => {
+  const rowWidths: number[][] = [];
+  let maxRowWidth = 0;
+
+  for (let rowIndex = 0; rowIndex < Math.ceil(points.length / columns); rowIndex += 1) {
+    const rowStart = rowIndex * columns;
+    const rowPoints = points.slice(rowStart, rowStart + columns);
+    const gapWidth = gapX * Math.max(0, rowPoints.length - 1);
+    const maxContentWidth = availableWidth - gapWidth;
+    if (maxContentWidth <= 0) return null;
+
+    let widths = rowPoints.map(point => estimateCardWidth(point, baseWidth, minWidth, fontSize));
+    const desiredTotal = widths.reduce((sum, width) => sum + width, 0);
+
+    if (desiredTotal > maxContentWidth + 0.1) {
+      const shrinkableWidth = widths.reduce((sum, width) => sum + Math.max(0, width - minWidth), 0);
+      if (shrinkableWidth <= 0) {
+        return null;
+      }
+
+      const overrun = desiredTotal - maxContentWidth;
+      widths = widths.map(width => {
+        const flex = Math.max(0, width - minWidth);
+        if (flex === 0) return round(width);
+        const reduction = overrun * (flex / shrinkableWidth);
+        return round(Math.max(minWidth, width - reduction));
+      });
+    }
+
+    const rowWidth = widths.reduce((sum, width) => sum + width, 0) + gapWidth;
+    if (rowWidth > availableWidth + 0.1) return null;
+
+    rowWidths.push(widths);
+    maxRowWidth = Math.max(maxRowWidth, rowWidth);
+  }
+
+  return {
+    rowWidths,
+    maxRowWidth: round(maxRowWidth),
+  };
+};
+
 const buildCardLayout = (
   points: CenterPoint[],
   startX: number,
   startY: number,
   columns: number,
-  cardWidth: number,
+  rowWidths: number[][],
+  fullRowWidth: number,
   cardHeight: number,
   gapX: number,
   gapY: number,
 ) => {
   const rows = Math.ceil(points.length / columns);
-  const fullRowWidth = (cardWidth * columns) + (gapX * Math.max(0, columns - 1));
   const placements: PointCardPlacement[] = [];
 
   for (let rowIndex = 0; rowIndex < rows; rowIndex += 1) {
     const rowStart = rowIndex * columns;
     const rowPoints = points.slice(rowStart, rowStart + columns);
-    const rowWidth = (cardWidth * rowPoints.length) + (gapX * Math.max(0, rowPoints.length - 1));
+    const widths = rowWidths[rowIndex] || rowPoints.map(() => 0);
+    const rowWidth = widths.reduce((sum, width) => sum + width, 0) + (gapX * Math.max(0, rowPoints.length - 1));
     const rowOffsetX = startX + Math.max(0, (fullRowWidth - rowWidth) / 2);
+    let currentX = rowOffsetX;
 
     rowPoints.forEach((point, columnIndex) => {
+      const width = widths[columnIndex] ?? widths[widths.length - 1] ?? 0;
       placements.push({
         point,
-        x: round(rowOffsetX + (columnIndex * (cardWidth + gapX))),
+        x: round(currentX),
         y: round(startY + (rowIndex * (cardHeight + gapY))),
-        width: round(cardWidth),
+        width: round(width),
         height: round(cardHeight),
       });
+      currentX += width + gapX;
     });
   }
 
   return placements;
+};
+
+const buildUniformRowWidths = (
+  points: CenterPoint[],
+  columns: number,
+  width: number,
+) => {
+  const rows = Math.ceil(points.length / columns);
+  return Array.from({ length: rows }, (_, rowIndex) => {
+    const rowStart = rowIndex * columns;
+    const rowPoints = points.slice(rowStart, rowStart + columns);
+    return rowPoints.map(() => width);
+  });
 };
 
 export const PointCardLayoutEngine = {
@@ -299,7 +391,6 @@ export const PointCardLayoutEngine = {
         if (rawCardWidth < state.minWidth) continue;
 
         const cardWidth = Math.min(state.maxWidth, rawCardWidth);
-        const totalWidth = (cardWidth * columns) + (state.gapX * Math.max(0, columns - 1));
         const rawCardHeight = (innerHeight - (state.gapY * Math.max(0, rows - 1))) / rows;
         if (rawCardHeight < state.minHeight) continue;
 
@@ -307,9 +398,31 @@ export const PointCardLayoutEngine = {
         const totalHeight = (cardHeight * rows) + (state.gapY * Math.max(0, rows - 1));
         if (totalHeight > innerHeight + 0.1) continue;
 
+        const widthLayout = computeRowWidths(
+          points,
+          columns,
+          cardWidth,
+          state.minWidth,
+          innerWidth,
+          state.gapX,
+          state.codeFontSize,
+        );
+        if (!widthLayout) continue;
+
+        const totalWidth = widthLayout.maxRowWidth;
         const startX = innerX + Math.max(0, (innerWidth - totalWidth) / 2);
         const startY = innerY + Math.max(0, Math.min((innerHeight - totalHeight) / 2, visualWeight >= 5 ? 3 : 6));
-        const cards = buildCardLayout(points, startX, startY, columns, cardWidth, cardHeight, state.gapX, state.gapY);
+        const cards = buildCardLayout(
+          points,
+          startX,
+          startY,
+          columns,
+          widthLayout.rowWidths,
+          totalWidth,
+          cardHeight,
+          state.gapX,
+          state.gapY,
+        );
 
         const strictFit = polygon.length < 3
           || cards.every(card => rectangleFitsPolygon(polygon, card.x, card.y, card.width, card.height));
@@ -369,12 +482,24 @@ export const PointCardLayoutEngine = {
       1,
       Math.max(1, emergencyMaxColumns),
     );
-    const emergencyCards = buildCardLayout(
+    const emergencyWidthLayout = computeRowWidths(
       points,
-      innerX + Math.max(0, (innerWidth - ((emergencyWidth * emergencyColumns) + (emergencyGapX * Math.max(0, emergencyColumns - 1)))) / 2),
-      innerY + 1,
       emergencyColumns,
       emergencyWidth,
+      round(34 * POINT_CARD_SCALE),
+      innerWidth,
+      emergencyGapX,
+      round(5.8 * POINT_CARD_FONT_SCALE),
+    );
+    const emergencyTotalWidth = emergencyWidthLayout?.maxRowWidth
+      ?? ((emergencyWidth * emergencyColumns) + (emergencyGapX * Math.max(0, emergencyColumns - 1)));
+    const emergencyCards = buildCardLayout(
+      points,
+      innerX + Math.max(0, (innerWidth - emergencyTotalWidth) / 2),
+      innerY + 1,
+      emergencyColumns,
+      emergencyWidthLayout?.rowWidths ?? buildUniformRowWidths(points, emergencyColumns, emergencyWidth),
+      emergencyTotalWidth,
       emergencyHeight,
       emergencyGapX,
       emergencyGapY,
